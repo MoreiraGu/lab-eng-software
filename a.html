@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motor de Permissões • Fluxo de Orçamento</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Inter, Arial, sans-serif;
+    background: #f4f6f8;
+    color: #1f2937;
+  }
+
+  .topbar {
+    height: 64px;
+    background: #172033;
+    color: white;
+    display: flex;
+    align-items: center;
+    padding: 0 28px;
+    gap: 18px;
+  }
+  .logo { font-size: 21px; font-weight: 800; }
+  .logo span { color: #60a5fa; }
+  .topbar .desc { font-size: 13px; opacity: .7; }
+
+  main { max-width: 1280px; margin: 0 auto; padding: 30px; }
+
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .subtitle { color: #6b7280; font-size: 14px; margin-bottom: 24px; }
+
+  .picker { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  .user-card {
+    flex: 1; min-width: 210px;
+    background: white; border: 2px solid #e5e7eb; border-radius: 10px;
+    padding: 14px 16px; cursor: pointer; transition: border-color .15s;
+  }
+  .user-card:hover { border-color: #93c5fd; }
+  .user-card.selected { border-color: #2563eb; background: #f5f9ff; }
+  .user-card .nome { font-weight: 700; font-size: 14px; }
+  .user-card .cargo { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .user-card .grupo-tag {
+    display: inline-block; margin-top: 8px; padding: 3px 8px; border-radius: 5px;
+    background: #eef2ff; color: #4338ca; font-size: 11px; font-weight: 700;
+  }
+
+  .layout { display: grid; grid-template-columns: 1fr 380px; gap: 20px; align-items: start; }
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+
+  .panel { background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; }
+  .panel h2 { font-size: 14px; margin: 0 0 3px; }
+  .panel .panel-sub { font-size: 12px; color: #9ca3af; margin-bottom: 14px; }
+
+  .field-badge {
+    display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px;
+    border-radius: 4px; letter-spacing: .02em; margin-bottom: 10px;
+  }
+  .badge-grupo { background: #f3f4f6; color: #6b7280; }
+  .badge-permitido { background: #dcfce7; color: #15803d; }
+  .badge-bloqueado { background: #fee2e2; color: #b91c1c; }
+  .badge-gate { background: #fef3c7; color: #92400e; }
+
+  /* --- catálogo / itens --- */
+  .add-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .add-row select { flex: 2; }
+  .add-row input { flex: 1; }
+  .add-row button {
+    border: 0; background: #2563eb; color: white; font-weight: 700;
+    padding: 0 14px; border-radius: 7px; cursor: pointer; font-size: 13px;
+  }
+  select, input, textarea {
+    width: 100%; padding: 9px 10px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 13px;
+    font-family: inherit;
+  }
+  .field-locked { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: #9ca3af; font-size: 11px; text-transform: uppercase; padding: 6px 4px; }
+  td { padding: 8px 4px; border-top: 1px solid #f0f1f3; }
+  .rm-btn { border: 0; background: none; color: #dc2626; cursor: pointer; font-weight: 700; font-size: 13px; }
+
+  .totais { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+  .totais-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; color: #6b7280; }
+  .totais-row b { color: #1f2937; }
+  .margem-linha { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding: 10px 12px; border-radius: 7px; font-weight: 700; }
+  .margem-ok { background: #f0fdf4; color: #15803d; }
+  .margem-baixa { background: #fef2f2; color: #b91c1c; }
+
+  .status-msg {
+    margin-top: 10px; padding: 10px 12px; border-radius: 7px; font-size: 12px; font-weight: 600;
+  }
+  .status-ok { background: #f0fdf4; color: #15803d; }
+  .status-pendente { background: #fef3c7; color: #92400e; }
+  .status-bloqueado { background: #fee2e2; color: #b91c1c; }
+
+  .motivo-box { margin-top: 10px; padding: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; }
+  .motivo-box label { font-size: 12px; font-weight: 700; color: #92400e; margin-bottom: 6px; display: block; }
+  .motivo-box textarea { min-height: 60px; resize: vertical; }
+  .btn-confirmar {
+    margin-top: 8px; border: 0; background: #d97706; color: white; font-weight: 700;
+    padding: 8px 14px; border-radius: 7px; cursor: pointer; font-size: 12px;
+  }
+  .btn-confirmar:disabled { background: #d6d3d1; cursor: not-allowed; }
+
+  .pgto-opcoes { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+  .pgto-opt {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #e5e7eb;
+    border-radius: 7px; font-size: 13px; cursor: pointer;
+  }
+  .pgto-opt.selecionada { border-color: #2563eb; background: #f5f9ff; }
+  .pgto-opt.desabilitada { opacity: .45; cursor: not-allowed; }
+  .pgto-opt .tag-tipo {
+    margin-left: auto; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+  }
+  .tag-padrao { background: #eef2ff; color: #4338ca; }
+  .tag-excecao { background: #fef3c7; color: #92400e; }
+
+  /* --- trace / explicação --- */
+  .explicacao { font-size: 13px; line-height: 1.65; color: #374151; }
+  .explicacao h3 { font-size: 13px; margin: 18px 0 8px; color: #172033; }
+  .explicacao h3:first-child { margin-top: 0; }
+  .explicacao .passo {
+    display: flex; gap: 8px; margin-bottom: 8px; padding-left: 2px;
+  }
+  .explicacao .num {
+    flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: #eef2ff; color: #4338ca;
+    font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-top: 2px;
+  }
+  .explicacao .resultado {
+    margin-top: 6px; padding: 8px 10px; border-radius: 6px; font-weight: 700; font-size: 12.5px;
+  }
+  .res-liberado { background: #f0fdf4; color: #15803d; }
+  .res-bloqueado { background: #fee2e2; color: #b91c1c; }
+  .res-pendente { background: #fef3c7; color: #92400e; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo">NEXUS<span>ERP</span></div>
+  <div class="desc">Demo — fluxo completo de orçamento com aprovações por cargo, não só por setor</div>
+</header>
+
+<main>
+  <h1>Orçamento de Equipamentos — Projeto #513</h1>
+  <div class="subtitle">Cliente: Vertex Consultoria · Itens de tecnologia (fones, mouses, notebooks, monitores...)</div>
+
+  <div class="picker" id="picker"></div>
+
+  <div class="layout">
+    <div class="stack">
+
+      <div class="panel">
+        <h2>1. Montagem do orçamento</h2>
+        <div class="panel-sub">Só quem monta orçamento (papel de vendedor/coordenador no Comercial) mexe aqui.</div>
+        <span class="field-badge" id="badgeItens"></span>
+
+        <div class="add-row">
+          <select id="selItem"></select>
+          <input type="number" id="inQtd" min="1" value="1">
+          <button id="btnAdd" onclick="adicionarItem()">Adicionar</button>
+        </div>
+
+        <table>
+          <thead><tr><th>Item</th><th>Qtd</th><th>Venda</th><th>Custo</th><th></th></tr></thead>
+          <tbody id="tabelaItens"></tbody>
+        </table>
+
+        <div class="totais">
+          <div class="totais-row"><span>Total de venda</span><b id="totVenda"></b></div>
+          <div class="totais-row"><span>Total de custo</span><b id="totCusto"></b></div>
+          <div class="margem-linha" id="margemLinha">
+            <span>Margem do orçamento</span><span id="margemTxt"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>2. Aprovação de margem</h2>
+        <div class="panel-sub">Regra do sistema: margem abaixo de 30% precisa de aprovação do Coordenador Comercial.</div>
+        <span class="field-badge" id="badgeMargem"></span>
+        <div id="areaMargem"></div>
+      </div>
+
+      <div class="panel">
+        <h2>3. Forma de pagamento</h2>
+        <div class="panel-sub">Financeiro libera dentro da política padrão. Fora dela, só com aprovação da Diretoria + motivo.</div>
+        <span class="field-badge" id="badgePagamento"></span>
+        <div class="pgto-opcoes" id="opcoesPagamento"></div>
+        <div id="areaPagamento"></div>
+      </div>
+
+    </div>
+
+    <div class="panel">
+      <h2>Como o motor resolveu</h2>
+      <div class="panel-sub">Explicação passo a passo, pro usuário selecionado no topo.</div>
+      <div class="explicacao" id="explicacao"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* =========================================================
+   1) "BANCO DE DADOS"
+   ========================================================= */
+
+const grupos = [
+  { id: 1, nome: 'Financeiro' },
+  { id: 2, nome: 'Comercial' },
+];
+
+const usuarios = [
+  { id: 201, nome: 'Lucas Andrade',  cargo: 'Vendedor',               grupo_id: 2 },
+  { id: 102, nome: 'Bruno Castro',   cargo: 'Coordenador Comercial',  grupo_id: 2 },
+  { id: 101, nome: 'Ana Ribeiro',    cargo: 'Analista Financeiro',    grupo_id: 1 },
+  { id: 103, nome: 'Carla Menezes',  cargo: 'Diretora Financeira',    grupo_id: 1 },
+];
+
+const catalogo = [
+  { id: 'fone',      nome: 'Fone Headset USB',        custo: 80,   preco: 150  },
+  { id: 'mouse',     nome: 'Mouse sem fio',            custo: 35,   preco: 70   },
+  { id: 'teclado',   nome: 'Teclado mecânico',         custo: 120,  preco: 220  },
+  { id: 'notebook',  nome: 'Notebook i5 8GB',          custo: 2200, preco: 3200 },
+  { id: 'monitor',   nome: 'Monitor 24" Full HD',      custo: 520,  preco: 850  },
+];
+
+const campos = [
+  { id: 'orcamento_itens', nome: 'Montar itens do orçamento' },
+  { id: 'aprovacao_margem', nome: 'Aprovar margem abaixo do padrão' },
+  { id: 'forma_pagamento', nome: 'Liberar forma de pagamento fora da política' },
+];
+
+// regra padrão por GRUPO — repare que "aprovacao_margem" fica FALSE pro
+// Comercial inteiro: nem o vendedor nem o coordenador aprovam por serem
+// do setor — a aprovação é um CARGO específico, resolvida como override
+// individual abaixo. O grupo só dá a base (montar orçamento).
+const permissoesCampoGrupo = [
+  { grupo_id: 1, campo_id: 'orcamento_itens',  editavel: false },
+  { grupo_id: 1, campo_id: 'aprovacao_margem', editavel: false },
+  { grupo_id: 1, campo_id: 'forma_pagamento',  editavel: true  },
+
+  { grupo_id: 2, campo_id: 'orcamento_itens',  editavel: true  },
+  { grupo_id: 2, campo_id: 'aprovacao_margem', editavel: false },
+  { grupo_id: 2, campo_id: 'forma_pagamento',  editavel: false },
+];
+
+// exceção por USUÁRIO — aqui mora o cargo/autoridade específica de cada um
+const permissoesCampoUsuario = [
+  // Bruno é Coordenador: o admin liberou individualmente a permissão de
+  // aprovar margem abaixo do padrão — nenhum outro Comercial tem isso,
+  // nem o próprio Lucas, mesmo estando no mesmo grupo.
+  { usuario_id: 102, campo_id: 'aprovacao_margem', estado: 'PERMITIDO' },
+
+  // Carla é Diretora: o admin liberou individualmente a permissão de
+  // aprovar forma de pagamento fora da política padrão — nem Ana, sendo
+  // do mesmo setor, tem essa exceção.
+  { usuario_id: 103, campo_id: 'forma_pagamento', estado: 'PERMITIDO' },
+];
+
+const opcoesPagamento = [
+  { label: 'Boleto à vista',            tipo: 'padrao'  },
+  { label: 'Boleto 30 dias',            tipo: 'padrao'  },
+  { label: 'Boleto 60 dias',            tipo: 'padrao'  },
+  { label: 'Boleto 90 dias',            tipo: 'excecao' },
+  { label: 'Parcelado 10x sem juros',   tipo: 'excecao' },
+];
+
+const MARGEM_MINIMA = 30; // % — abaixo disso, precisa aprovação do Coordenador
+
+/* =========================================================
+   2) ESTADO DO PROJETO (compartilhado — o mesmo orçamento
+      visto por 4 cargos diferentes)
+   ========================================================= */
+
+let orcamentoItens = [
+  { itemId: 'notebook', qtd: 5 },
+  { itemId: 'mouse',    qtd: 5 },
+  { itemId: 'fone',     qtd: 5 },
+];
+
+let margemAprovadaManualmente = false;
+let motivoMargem = '';
+
+let formaPagamentoAtual = 'Boleto 30 dias';
+let motivoFormaPagamento = '';
+let pendenteExcecao = null; // guarda a opção de exceção aguardando confirmação + motivo
+
+function calcularTotais() {
+  let venda = 0, custo = 0;
+  orcamentoItens.forEach(it => {
+    const cat = catalogo.find(c => c.id === it.itemId);
+    venda += cat.preco * it.qtd;
+    custo += cat.custo * it.qtd;
+  });
+  const margem = venda > 0 ? ((venda - custo) / venda) * 100 : 0;
+  return { venda, custo, margem };
+}
+
+/* =========================================================
+   3) MOTOR DE RESOLUÇÃO — o núcleo que já usamos nos exemplos
+      anteriores, sem mudança nenhuma na lógica central
+   ========================================================= */
+
+function resolverPermissaoCampo(usuarioId, campoId) {
+  const usuario = usuarios.find(u => u.id === usuarioId);
+
+  const overrideUsuario = permissoesCampoUsuario.find(
+    p => p.usuario_id === usuarioId && p.campo_id === campoId
+  );
+  const estado = (overrideUsuario && overrideUsuario.estado) ? overrideUsuario.estado : 'USAR_GRUPO';
+
+  const regraGrupo = permissoesCampoGrupo.find(
+    p => p.grupo_id === usuario.grupo_id && p.campo_id === campoId
+  );
+  const editavelPorGrupo = regraGrupo ? regraGrupo.editavel : false;
+
+  let efetivo;
+  if (estado === 'PERMITIDO') efetivo = true;
+  else if (estado === 'BLOQUEADO') efetivo = false;
+  else efetivo = editavelPorGrupo;
+
+  // "bypass" = está usando uma autorização individual (não é regra do
+  // grupo dele) — sempre que isso acontece pra LIBERAR algo fora do
+  // padrão, o sistema vai exigir motivo, tratado na camada de UI.
+  const bypassIndividual = estado === 'PERMITIDO';
+
+  return { estado, editavelPorGrupo, efetivo, bypassIndividual };
+}
+
+/* =========================================================
+   4) UI
+   ========================================================= */
+
+let usuarioAtual = usuarios[0].id;
+
+function formatMoeda(num) {
+  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function badgeInfo(perm) {
+  if (perm.estado === 'PERMITIDO') return { css: 'badge-permitido', label: 'AUTORIZAÇÃO INDIVIDUAL' };
+  if (perm.estado === 'BLOQUEADO') return { css: 'badge-bloqueado', label: 'BLOQUEADO P/ VOCÊ' };
+  if (perm.efetivo) return { css: 'badge-grupo', label: 'REGRA DO SEU SETOR' };
+  return { css: 'badge-bloqueado', label: 'FORA DO SEU CARGO' };
+}
+
+function renderPicker() {
+  const el = document.getElementById('picker');
+  el.innerHTML = usuarios.map(u => {
+    const grupo = grupos.find(g => g.id === u.grupo_id).nome;
+    const sel = u.id === usuarioAtual ? 'selected' : '';
+    return `
+      <div class="user-card ${sel}" onclick="selecionarUsuario(${u.id})">
+        <div class="nome">${u.nome}</div>
+        <div class="cargo">${u.cargo}</div>
+        <span class="grupo-tag">${grupo}</span>
+      </div>`;
+  }).join('');
+}
+
+function selecionarUsuario(id) {
+  usuarioAtual = id;
+  pendenteExcecao = null;
+  renderPicker();
+  render();
+}
+
+/* --- painel 1: itens do orçamento --- */
+
+function preencherSelectItens() {
+  const sel = document.getElementById('selItem');
+  sel.innerHTML = catalogo.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+}
+
+function adicionarItem() {
+  const permItens = resolverPermissaoCampo(usuarioAtual, 'orcamento_itens');
+  if (!permItens.efetivo) return;
+  const itemId = document.getElementById('selItem').value;
+  const qtd = Math.max(1, Number(document.getElementById('inQtd').value) || 1);
+  const existente = orcamentoItens.find(i => i.itemId === itemId);
+  if (existente) existente.qtd += qtd;
+  else orcamentoItens.push({ itemId, qtd });
+  render();
+}
+
+function removerItem(itemId) {
+  orcamentoItens = orcamentoItens.filter(i => i.itemId !== itemId);
+  render();
+}
+
+function renderItens() {
+  const perm = resolverPermissaoCampo(usuarioAtual, 'orcamento_itens');
+  const badge = badgeInfo(perm);
+  document.getElementById('badgeItens').className = 'field-badge ' + badge.css;
+  document.getElementById('badgeItens').textContent = badge.label;
+
+  document.getElementById('selItem').disabled = !perm.efetivo;
+  document.getElementById('inQtd').disabled = !perm.efetivo;
+  document.getElementById('btnAdd').disabled = !perm.efetivo;
+
+  const tbody = document.getElementById('tabelaItens');
+  tbody.innerHTML = orcamentoItens.map(it => {
+    const cat = catalogo.find(c => c.id === it.itemId);
+    return `
+      <tr>
+        <td>${cat.nome}</td>
+        <td>${it.qtd}</td>
+        <td>${formatMoeda(cat.preco * it.qtd)}</td>
+        <td>${formatMoeda(cat.custo * it.qtd)}</td>
+        <td>${perm.efetivo ? `<button class="rm-btn" onclick="removerItem('${it.itemId}')">remover</button>` : ''}</td>
+      </tr>`;
+  }).join('');
+
+  const { venda, custo, margem } = calcularTotais();
+  document.getElementById('totVenda').textContent = formatMoeda(venda);
+  document.getElementById('totCusto').textContent = formatMoeda(custo);
+
+  const margemLinha = document.getElementById('margemLinha');
+  margemLinha.className = 'margem-linha ' + (margem < MARGEM_MINIMA ? 'margem-baixa' : 'margem-ok');
+  document.getElementById('margemTxt').textContent = margem.toFixed(1) + '%';
+
+  return { venda, custo, margem };
+}
+
+/* --- painel 2: aprovação de margem --- */
+
+function renderMargem(margem) {
+  const perm = resolverPermissaoCampo(usuarioAtual, 'aprovacao_margem');
+  const badge = badgeInfo(perm);
+  document.getElementById('badgeMargem').className = 'field-badge ' + badge.css;
+  document.getElementById('badgeMargem').textContent = badge.label;
+
+  const area = document.getElementById('areaMargem');
+  const precisaAprovacao = margem < MARGEM_MINIMA;
+
+  if (!precisaAprovacao) {
+    area.innerHTML = `<div class="status-msg status-ok">Margem dentro do padrão (≥ ${MARGEM_MINIMA}%) — segue sem precisar de aprovação.</div>`;
+    return;
+  }
+
+  if (margemAprovadaManualmente) {
+    area.innerHTML = `
+      <div class="status-msg status-ok">Aprovada por Bruno Castro (Coordenador Comercial).</div>
+      <div style="margin-top:6px; font-size:12px; color:#6b7280;"><b>Motivo:</b> ${motivoMargem}</div>`;
+    return;
+  }
+
+  if (!perm.efetivo) {
+    area.innerHTML = `<div class="status-msg status-bloqueado">Margem abaixo de ${MARGEM_MINIMA}% — aguardando aprovação do Coordenador Comercial. Você não tem essa autorização.</div>`;
+    return;
+  }
+
+  // é o Bruno, com autorização — pede o motivo antes de liberar
+  area.innerHTML = `
+    <div class="status-msg status-pendente">Margem abaixo de ${MARGEM_MINIMA}% — você pode aprovar, mas precisa justificar.</div>
+    <div class="motivo-box">
+      <label>Motivo da aprovação (obrigatório)</label>
+      <textarea id="motivoMargemInput" placeholder="Ex: cliente estratégico, volume compensa a margem menor...">${motivoMargem}</textarea>
+      <button class="btn-confirmar" id="btnAprovarMargem" onclick="confirmarAprovacaoMargem()">Aprovar margem</button>
+    </div>`;
+
+  const textarea = document.getElementById('motivoMargemInput');
+  const btn = document.getElementById('btnAprovarMargem');
+  const atualizarBotao = () => { btn.disabled = textarea.value.trim().length === 0; };
+  textarea.addEventListener('input', atualizarBotao);
+  atualizarBotao();
+}
+
+function confirmarAprovacaoMargem() {
+  const textarea = document.getElementById('motivoMargemInput');
+  if (!textarea.value.trim()) return;
+  motivoMargem = textarea.value.trim();
+  margemAprovadaManualmente = true;
+  render();
+}
+
+/* --- painel 3: forma de pagamento --- */
+
+function renderPagamento() {
+  const perm = resolverPermissaoCampo(usuarioAtual, 'forma_pagamento');
+  const badge = badgeInfo(perm);
+  document.getElementById('badgePagamento').className = 'field-badge ' + badge.css;
+  document.getElementById('badgePagamento').textContent = badge.label;
+
+  const opcoesEl = document.getElementById('opcoesPagamento');
+  opcoesEl.innerHTML = opcoesPagamento.map(op => {
+    const selecionada = op.label === formaPagamentoAtual;
+    const desabilitada = !perm.efetivo;
+    return `
+      <div class="pgto-opt ${selecionada ? 'selecionada' : ''} ${desabilitada ? 'desabilitada' : ''}"
+           onclick="${desabilitada ? '' : `escolherPagamento('${op.label}')`}">
+        <span>${op.label}</span>
+        <span class="tag-tipo ${op.tipo === 'padrao' ? 'tag-padrao' : 'tag-excecao'}">
+          ${op.tipo === 'padrao' ? 'PADRÃO' : 'EXCEÇÃO'}
+        </span>
+      </div>`;
+  }).join('');
+
+  const area = document.getElementById('areaPagamento');
+  if (pendenteExcecao) {
+    area.innerHTML = `
+      <div class="motivo-box">
+        <label>Motivo da liberação (obrigatório) — "${pendenteExcecao}" está fora da política padrão</label>
+        <textarea id="motivoPagamentoInput" placeholder="Ex: cliente fechou volume grande, condição negociada pela diretoria...">${motivoFormaPagamento}</textarea>
+        <button class="btn-confirmar" id="btnConfirmarPagamento" onclick="confirmarPagamentoExcecao()">Confirmar liberação</button>
+      </div>`;
+    const textarea = document.getElementById('motivoPagamentoInput');
+    const btn = document.getElementById('btnConfirmarPagamento');
+    const atualizarBotao = () => { btn.disabled = textarea.value.trim().length === 0; };
+    textarea.addEventListener('input', atualizarBotao);
+    atualizarBotao();
+  } else if (motivoFormaPagamento && opcoesPagamento.find(o => o.label === formaPagamentoAtual)?.tipo === 'excecao') {
+    area.innerHTML = `<div class="status-msg status-ok"><b>Liberado por exceção.</b> Motivo: ${motivoFormaPagamento}</div>`;
+  } else {
+    area.innerHTML = '';
+  }
+}
+
+function escolherPagamento(label) {
+  const perm = resolverPermissaoCampo(usuarioAtual, 'forma_pagamento');
+  const opcao = opcoesPagamento.find(o => o.label === label);
+
+  if (opcao.tipo === 'padrao') {
+    formaPagamentoAtual = label;
+    motivoFormaPagamento = '';
+    pendenteExcecao = null;
+    render();
+    return;
+  }
+
+  // é exceção — só quem tem bypass individual pode sequer tentar
+  if (!perm.bypassIndividual) {
+    alert('Essa forma de pagamento está fora da política padrão. Só a Diretoria Financeira pode liberar, e precisa justificar o motivo.');
+    return;
+  }
+
+  pendenteExcecao = label;
+  render();
+}
+
+function confirmarPagamentoExcecao() {
+  const textarea = document.getElementById('motivoPagamentoInput');
+  if (!textarea.value.trim()) return;
+  formaPagamentoAtual = pendenteExcecao;
+  motivoFormaPagamento = textarea.value.trim();
+  pendenteExcecao = null;
+  render();
+}
+
+/* --- painel lateral: explicação passo a passo --- */
+
+function renderExplicacao(margem) {
+  const usuario = usuarios.find(u => u.id === usuarioAtual);
+  const grupoNome = grupos.find(g => g.id === usuario.grupo_id).nome;
+  const el = document.getElementById('explicacao');
+
+  const permMargem = resolverPermissaoCampo(usuarioAtual, 'aprovacao_margem');
+  const permPagamento = resolverPermissaoCampo(usuarioAtual, 'forma_pagamento');
+  const precisaAprovacaoMargem = margem < MARGEM_MINIMA;
+
+  function passo(texto) {
+    return `<div class="passo"><div class="num">→</div><div>${texto}</div></div>`;
+  }
+
+  let html = `<p style="margin-top:0;">Analisando como <b>${usuario.nome}</b> (${usuario.cargo}, setor <b>${grupoNome}</b>) se sai em cada aprovação:</p>`;
+
+  // --- bloco margem ---
+  html += `<h3>Aprovação de margem</h3>`;
+  html += passo(`O sistema olha se <b>${usuario.nome}</b> tem uma autorização individual cadastrada pra "aprovar margem". ${
+    permMargem.estado === 'PERMITIDO'
+      ? 'Encontrou: existe um registro liberado especificamente pra ele(a).'
+      : 'Não encontrou nenhuma exceção — vai usar a regra do grupo dele.'
+  }`);
+  if (permMargem.estado !== 'PERMITIDO') {
+    html += passo(`A regra do grupo <b>${grupoNome}</b> pra esse campo é <b>${permMargem.editavelPorGrupo ? 'editável' : 'não editável'}</b>. Como não há exceção, esse é o valor final.`);
+  }
+  if (!precisaAprovacaoMargem) {
+    html += `<div class="resultado res-liberado">Resultado: nem chega a importar — a margem atual (${margem.toFixed(1)}%) já está dentro do padrão, ninguém precisa aprovar nada.</div>`;
+  } else if (permMargem.efetivo) {
+    html += `<div class="resultado ${margemAprovadaManualmente ? 'res-liberado' : 'res-pendente'}">Resultado: ${usuario.nome} PODE aprovar essa margem baixa — mas o sistema exige motivo escrito antes de confirmar, porque é uma autorização de exceção, não uma rotina do setor.</div>`;
+  } else {
+    html += `<div class="resultado res-bloqueado">Resultado: BLOQUEADO. A margem está abaixo de ${MARGEM_MINIMA}% e ${usuario.nome} não tem a autorização individual — só o Coordenador Comercial (Bruno) tem.</div>`;
+  }
+
+  // --- bloco pagamento ---
+  html += `<h3>Forma de pagamento</h3>`;
+  html += passo(`O sistema checa se <b>${usuario.nome}</b> tem override cadastrado pra "liberar pagamento fora da política". ${
+    permPagamento.estado === 'PERMITIDO'
+      ? 'Encontrou: ele(a) tem essa autorização de exceção.'
+      : 'Não encontrou — usa a regra do grupo.'
+  }`);
+  html += passo(`A regra do grupo <b>${grupoNome}</b> pra edição normal do campo é <b>${permPagamento.editavelPorGrupo ? 'editável' : 'não editável'}</b>.`);
+  if (!permPagamento.efetivo) {
+    html += `<div class="resultado res-bloqueado">Resultado: BLOQUEADO por completo. Definir forma de pagamento é decisão do Financeiro — ${usuario.nome} é do setor ${grupoNome} e não mexe nesse campo, nem nas opções padrão.</div>`;
+  } else if (permPagamento.bypassIndividual) {
+    html += `<div class="resultado res-liberado">Resultado: ${usuario.nome} pode escolher qualquer opção, inclusive as marcadas "EXCEÇÃO" — mas ao escolher uma exceção, o sistema exige motivo escrito antes de confirmar.</div>`;
+  } else {
+    html += `<div class="resultado res-pendente">Resultado: ${usuario.nome} pode escolher livremente as opções "PADRÃO". Se tentar uma opção "EXCEÇÃO", o sistema bloqueia e explica que só a Diretoria Financeira (Carla) pode liberar isso.</div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function render() {
+  preencherSelectItens();
+  const { margem } = renderItens();
+  renderMargem(margem);
+  renderPagamento();
+  renderExplicacao(margem);
+}
+
+renderPicker();
+render();
+</script>
+
+</body>
+</html>
